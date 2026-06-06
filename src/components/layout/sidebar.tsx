@@ -22,7 +22,7 @@ interface SidebarProps {
   currentUser: User;
   conversations: ConversationWithMembers[];
   groups: GroupWithMembers[];
-  initialUnread: Record<string, number>;
+  initialUnread?: Record<string, number>;
 }
 
 export function Sidebar({ currentUser, conversations, groups, initialUnread }: SidebarProps) {
@@ -31,9 +31,11 @@ export function Sidebar({ currentUser, conversations, groups, initialUnread }: S
   const { socket, onlineUsers, isConnected } = useSocket();
   const { counts, setInitial, increment, reset } = useUnreadStore();
 
-  // Seed store with server-computed counts once on mount
+  // Seed store with server-computed counts once on mount (only when data is provided)
   useEffect(() => {
-    setInitial(initialUnread);
+    if (initialUnread && Object.keys(initialUnread).length > 0) {
+      setInitial(initialUnread);
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Listen for incoming messages and bump the unread count for inactive rooms
