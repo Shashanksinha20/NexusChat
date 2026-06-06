@@ -90,7 +90,7 @@ export function FriendsPageClient({ currentUserId, friendships, pending }: Frien
             <TabsTrigger value="pending">
               Pending
               {pendingReqs.length > 0 && (
-                <Badge className="ml-2 h-5 w-5 rounded-full p-0 text-xs" variant="destructive">
+                <Badge className="ml-2 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center" variant="destructive">
                   {pendingReqs.length}
                 </Badge>
               )}

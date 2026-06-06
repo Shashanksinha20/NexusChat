@@ -7,7 +7,7 @@ A **real-time chat application** — think Discord or Slack, but built from scra
 ![Socket.IO](https://img.shields.io/badge/Socket.IO_v4-010101?style=flat-square&logo=socket.io)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=flat-square&logo=prisma)
-![Clerk](https://img.shields.io/badge/Clerk-6C47FF?style=flat-square&logo=clerk&logoColor=white)
+![NextAuth](https://img.shields.io/badge/NextAuth.js-black?style=flat-square&logo=next.js)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat-square&logo=redis&logoColor=white)
 
@@ -19,7 +19,7 @@ A **real-time chat application** — think Discord or Slack, but built from scra
 |---|---|---|
 | **Framework** | Next.js 14 (App Router) | Full-stack React framework — pages, API routes, and server components |
 | **Language** | TypeScript | Type-safe code across the entire project |
-| **Authentication** | Clerk | Sign up, sign in, user profiles — fully managed |
+| **Authentication** | NextAuth.js (Credentials) | Self-hosted sign up / sign in with bcrypt-hashed passwords — no external service |
 | **Real-time** | Socket.IO v4 | Instant message delivery, typing indicators, presence |
 | **Scaling** | Redis *(optional)* | Pub/sub adapter for running multiple server instances |
 | **Database** | PostgreSQL | Persistent storage for messages, users, groups, friends |
@@ -88,9 +88,10 @@ A **real-time chat application** — think Discord or Slack, but built from scra
 - **PostgreSQL database** — either local or a free cloud one:
   - [Neon](https://neon.tech) — free PostgreSQL in the cloud, no local install needed
   - [Supabase](https://supabase.com) — another free option
-- **A Clerk account** — free at [clerk.com](https://clerk.com) — handles all login/signup
 
-> **Redis is optional for local development.** You only need it if you want to run multiple server instances (production scaling). Skip it to get started quickly.
+> **No external auth service needed.** Authentication is fully self-hosted using NextAuth.js with email + password. No Clerk, no OAuth keys required.
+
+> **Redis is optional for local development.** You only need it if you want to run multiple server instances. Skip it to get started quickly.
 
 ---
 
@@ -109,59 +110,37 @@ cd nexus-chat
 pnpm install
 ```
 
-> If you get a permissions error on Windows, try deleting the `node_modules` folder and running `pnpm install` again. Adding `node_modules` to your antivirus exclusions also helps.
+> If you get a permissions error on Windows, try deleting the `node_modules` folder and running `pnpm install` again.
 
 ---
 
 ### Step 3 — Create your environment file
 
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in each value:
+Create a `.env` file in the root with the following:
 
 ```env
-# The URL your app runs at locally
+# App
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 PORT=3000
 
-# ── Clerk (Authentication) ─────────────────────────────────────────
-# Get these from https://dashboard.clerk.com → your app → API Keys
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
-CLERK_SECRET_KEY=sk_test_...
+# NextAuth — authentication
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=any-random-string-you-make-up
 
-# Leave these exactly as shown — they tell Clerk where to redirect after login
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/conversations
-NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/conversations
-
-# ── Database ───────────────────────────────────────────────────────
-# Replace with your PostgreSQL connection string
+# Database — replace with your PostgreSQL connection string
 # Neon example:  postgresql://user:pass@host.neon.tech/dbname?sslmode=require
 # Local example: postgresql://postgres:password@localhost:5432/nexuschat
 DATABASE_URL=postgresql://postgres:password@localhost:5432/nexuschat
 
-# ── Redis (optional) ───────────────────────────────────────────────
-# Comment out or leave blank if you don't have Redis running locally
+# Redis (optional — only needed for multi-instance scaling)
 # REDIS_URL=redis://localhost:6379
 ```
 
----
-
-### Step 4 — Clerk dashboard settings (important for localhost)
-
-In your [Clerk Dashboard](https://dashboard.clerk.com):
-
-1. Go to your application → **Configure** → **Attack Protection**
-2. Turn **off** bot protection (it blocks local development)
-
-> This step is only needed for localhost. You can re-enable it in production.
+> `NEXTAUTH_SECRET` can be any random string locally. For production, generate one with `openssl rand -base64 32`.
 
 ---
 
-### Step 5 — Set up the database
+### Step 4 — Set up the database
 
 ```bash
 # Creates all the tables in your database
@@ -171,19 +150,15 @@ pnpm db:push
 pnpm db:generate
 ```
 
-> Run `pnpm db:generate` any time you change `prisma/schema.prisma`.
-
 ---
 
-### Step 6 — Start the app
+### Step 5 — Start the app
 
 ```bash
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — sign up and start chatting!
-
-> **Note:** The app auto-creates your database profile when you first log in, so you don't need to set up Clerk webhooks just to run it locally. Webhooks are only required for production deployments.
+Open [http://localhost:3000](http://localhost:3000) — hit **Sign up**, create an account, and start chatting!
 
 ---
 
@@ -191,7 +166,7 @@ Open [http://localhost:3000](http://localhost:3000) — sign up and start chatti
 
 ```bash
 pnpm db:push        # Apply schema changes to your database (no migration files)
-pnpm db:migrate     # Apply schema changes and create migration history (for production)
+pnpm db:migrate     # Apply schema changes and create migration history
 pnpm db:generate    # Regenerate the Prisma client after schema changes
 pnpm db:studio      # Open a GUI to browse your database at http://localhost:5555
 ```
@@ -207,73 +182,79 @@ nexus-chat/
 ├── server.ts                   # Custom server: Next.js + Socket.IO on one port
 ├── src/
 │   ├── app/
-│   │   ├── (auth)/             # Sign-in / sign-up pages
+│   │   ├── (auth)/             # Sign-in / sign-up pages (custom forms)
 │   │   ├── (main)/             # App pages (conversations, groups, friends)
-│   │   ├── api/                # Backend API routes
-│   │   │   ├── webhooks/clerk  # Syncs Clerk users to the database (production)
+│   │   ├── api/
+│   │   │   ├── auth/           # NextAuth route + register endpoint
 │   │   │   ├── conversations/  # Direct message API
 │   │   │   ├── groups/         # Group API + role management
 │   │   │   ├── friends/        # Friend request API
 │   │   │   ├── invites/        # Invite link API
-│   │   │   └── messages/       # Message edit/delete API
+│   │   │   ├── messages/       # Message edit/delete API
+│   │   │   └── users/          # User search API
 │   │   └── invite/             # Public invite landing page
 │   ├── components/
 │   │   ├── chat/               # Message list, input box, message item
 │   │   ├── layout/             # Sidebar, mobile nav, unread mark-read
-│   │   ├── providers/          # Socket.IO, theme, and modal providers
+│   │   ├── providers/          # Socket.IO, theme, session, and modal providers
 │   │   └── ui/                 # Reusable UI components (Button, Dialog, etc.)
 │   ├── store/
 │   │   ├── modal-store.ts      # Which modal dialog is open
 │   │   └── unread-store.ts     # Unread message counts per conversation/group
 │   ├── lib/
+│   │   ├── auth.ts             # NextAuth configuration
 │   │   ├── db.ts               # Database connection
 │   │   └── utils.ts            # Shared helper functions
-│   ├── middleware.ts            # Clerk auth — protects all routes except sign-in/up
+│   ├── middleware.ts            # Protects routes — redirects unauthenticated users
 │   └── types/
-│       └── index.ts            # TypeScript types for the whole app
-└── .env.example                # Template for environment variables
+│       ├── index.ts            # TypeScript types for the whole app
+│       └── next-auth.d.ts      # Session type extensions for NextAuth
+└── .env                        # Your local environment variables (not committed)
 ```
 
 ---
 
-## Deploying to Production
+## Deploying to Production (Render)
 
-### Railway (Recommended)
+This app uses a custom Node.js server with Socket.IO, so it needs a platform that supports persistent processes — **not** Vercel. [Render](https://render.com) free tier works.
 
-Railway handles persistent server processes, which is what Socket.IO needs.
+### Step 1 — Push your code to GitHub
 
-1. Push your code to GitHub
-2. Create a new project on [Railway](https://railway.app)
-3. Add a **PostgreSQL** plugin and a **Redis** plugin inside Railway
-4. Click **Deploy from GitHub** → select this repo
-5. Add all your environment variables in Railway's dashboard (same as `.env`, but with production values)
-6. Set `NEXT_PUBLIC_APP_URL` to your Railway domain (e.g. `https://nexus-chat.up.railway.app`)
+Make sure your latest changes are pushed.
 
-Railway auto-detects the start command from `package.json`.
+### Step 2 — Create a PostgreSQL database on Render
 
-### Render
+1. Go to [render.com](https://render.com) → **New** → **PostgreSQL**
+2. Give it a name, pick the free tier, create it
+3. Copy the **Internal Database URL** — you'll need it in Step 4
 
-1. Create a new **Web Service** on [Render](https://render.com)
-2. Build command: `pnpm install && pnpm build && pnpm db:push`
-3. Start command: `pnpm start`
-4. Add a PostgreSQL and Redis database from Render's dashboard
-5. Set environment variables in Render's environment settings
+### Step 3 — Create a Web Service on Render
 
-### Clerk Webhook (required for production)
+1. **New** → **Web Service** → connect your GitHub repo
+2. Set the following:
+   - **Build command:** `pnpm install && pnpm build && pnpm db:push`
+   - **Start command:** `pnpm start`
+   - **Environment:** Node
 
-When deployed, you need Clerk to sync new users to your database automatically:
+### Step 4 — Add environment variables on Render
 
-1. Go to [Clerk Dashboard](https://dashboard.clerk.com) → **Webhooks** → **Add Endpoint**
-2. URL: `https://your-domain.com/api/webhooks/clerk`
-3. Subscribe to events: `user.created`, `user.updated`, `user.deleted`
-4. Copy the **Signing Secret** → add it as `CLERK_WEBHOOK_SECRET` in your environment variables
+In your Web Service → **Environment**, add:
 
-### Vercel (limited support)
+| Variable | Value |
+|---|---|
+| `NEXTAUTH_URL` | `https://your-app-name.onrender.com` |
+| `NEXTAUTH_SECRET` | Run `openssl rand -base64 32` and paste the result |
+| `DATABASE_URL` | The Internal Database URL from Step 2 |
+| `NEXT_PUBLIC_APP_URL` | `https://your-app-name.onrender.com` |
+| `PORT` | `10000` |
 
-Vercel's serverless architecture does **not** support persistent WebSocket connections. If you deploy to Vercel:
-- Deploy the Next.js app to Vercel
-- Deploy Socket.IO separately on Railway or Render
-- Point `NEXT_PUBLIC_APP_URL` on Vercel to your Socket.IO server URL
+> Redis is optional. Add `REDIS_URL` only if you set up a Redis instance.
+
+### Step 5 — Deploy
+
+Click **Deploy**. Render will build the app, push the database schema, and start the server. Once it's live, go to your Render URL and sign up for a new account.
+
+> **Note:** Render free tier spins down after 15 minutes of inactivity. The first request after idle takes ~30 seconds to wake up.
 
 ---
 
@@ -327,4 +308,4 @@ MIT — free to use in your own projects or portfolio.
 
 ---
 
-Built with Next.js, Socket.IO, Clerk, PostgreSQL, and shadcn/ui.
+Built with Next.js, Socket.IO, NextAuth.js, PostgreSQL, and shadcn/ui.
