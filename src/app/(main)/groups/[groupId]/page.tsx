@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { ChatMessages } from '@/components/chat/chat-messages';
 import { ChatHeader } from '@/components/chat/chat-header';
@@ -11,8 +12,8 @@ interface Props {
   params: { groupId: string };
 }
 
-async function getData(groupId: string, clerkId: string) {
-  const currentUser = await db.user.findUnique({ where: { clerkId } });
+async function getData(groupId: string, userId: string) {
+  const currentUser = await db.user.findUnique({ where: { id: userId } });
   if (!currentUser) return null;
 
   const group = await db.group.findUnique({
@@ -58,10 +59,10 @@ async function getData(groupId: string, clerkId: string) {
 }
 
 export default async function GroupPage({ params }: Props) {
-  const { userId } = auth();
-  if (!userId) redirect('/sign-in');
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) redirect('/sign-in');
 
-  const data = await getData(params.groupId, userId);
+  const data = await getData(params.groupId, session.user.id);
   if (!data) notFound();
 
   const { currentUser, group, myMembership, messages, conversations, groups } = data;

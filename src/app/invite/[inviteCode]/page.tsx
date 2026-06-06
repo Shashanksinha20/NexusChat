@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, Users, Hash } from 'lucide-react';
-import { useAuth } from '@clerk/nextjs';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -14,7 +14,8 @@ interface InviteData {
 }
 
 export default function InvitePage({ params }: { params: { inviteCode: string } }) {
-  const { isSignedIn } = useAuth();
+  const { data: session } = useSession();
+  const isSignedIn = !!session;
   const router = useRouter();
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [error, setError] = useState('');
@@ -34,7 +35,7 @@ export default function InvitePage({ params }: { params: { inviteCode: string } 
 
   const handleJoin = async () => {
     if (!isSignedIn) {
-      router.push(`/sign-in?redirect_url=/invite/${params.inviteCode}`);
+      router.push(`/sign-in?callbackUrl=/invite/${params.inviteCode}`);
       return;
     }
     setIsJoining(true);

@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { ChatMessages } from '@/components/chat/chat-messages';
 import { ChatInput } from '@/components/chat/chat-input';
@@ -11,8 +12,8 @@ interface Props {
   params: { conversationId: string };
 }
 
-async function getData(conversationId: string, clerkId: string) {
-  const currentUser = await db.user.findUnique({ where: { clerkId } });
+async function getData(conversationId: string, userId: string) {
+  const currentUser = await db.user.findUnique({ where: { id: userId } });
   if (!currentUser) return null;
 
   const conversation = await db.conversation.findUnique({
@@ -58,10 +59,10 @@ async function getData(conversationId: string, clerkId: string) {
 }
 
 export default async function ConversationPage({ params }: Props) {
-  const { userId } = auth();
-  if (!userId) redirect('/sign-in');
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) redirect('/sign-in');
 
-  const data = await getData(params.conversationId, userId);
+  const data = await getData(params.conversationId, session.user.id);
   if (!data) notFound();
 
   const { currentUser, conversation, messages, conversations, groups } = data;

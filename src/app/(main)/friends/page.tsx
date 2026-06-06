@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { Users, UserCheck, Clock, UserPlus } from 'lucide-react';
 import { db } from '@/lib/db';
 import { FriendsPageClient } from './friends-client';
 
-async function getData(clerkId: string) {
-  const user = await db.user.findUnique({ where: { clerkId } });
+async function getData(userId: string) {
+  const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
   const [friendships, pending] = await Promise.all([
@@ -29,10 +30,10 @@ async function getData(clerkId: string) {
 }
 
 export default async function FriendsPage() {
-  const { userId } = auth();
-  if (!userId) redirect('/sign-in');
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) redirect('/sign-in');
 
-  const data = await getData(userId);
+  const data = await getData(session.user.id);
   if (!data) redirect('/sign-in');
 
   return <FriendsPageClient currentUserId={data.user.id} friendships={data.friendships as any} pending={data.pending as any} />;

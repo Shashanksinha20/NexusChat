@@ -1,28 +1,14 @@
 import { redirect } from 'next/navigation';
-import { auth, currentUser } from '@clerk/nextjs/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { Sidebar } from '@/components/layout/sidebar';
 import { SocketProvider } from '@/components/providers/socket-provider';
 import { ModalProvider } from '@/components/providers/modal-provider';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
-async function getOrCreateDbUser(clerkId: string) {
-  let user = await db.user.findUnique({ where: { clerkId } });
-  if (!user) {
-    const clerkUser = await currentUser();
-    if (!clerkUser) return null;
-    const email = clerkUser.emailAddresses[0]?.emailAddress ?? '';
-    const username = clerkUser.username ?? email.split('@')[0] ?? clerkId;
-    const displayName = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') || username;
-    user = await db.user.create({
-      data: { clerkId, email, username, displayName, imageUrl: clerkUser.imageUrl },
-    });
-  }
-  return user;
-}
-
-async function getLayoutData(clerkId: string) {
-  const user = await getOrCreateDbUser(clerkId);
+async function getLayoutData(userId: string) {
+  const user = await db.user.findUnique({ where: { id: userId } });
   if (!user) return null;
 
   const [conversations, groups, convMembers, groupMembers] = await Promise.all([
@@ -52,7 +38,6 @@ async function getLayoutData(clerkId: string) {
     }),
   ]);
 
-  // Compute initial unread counts in parallel
   const [convUnreads, groupUnreads] = await Promise.all([
     Promise.all(
       convMembers.map((m) =>
@@ -79,10 +64,10 @@ async function getLayoutData(clerkId: string) {
 }
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-  const { userId } = auth();
-  if (!userId) redirect('/sign-in');
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) redirect('/sign-in');
 
-  const data = await getLayoutData(userId);
+  const data = await getLayoutData(session.user.id);
   if (!data) redirect('/sign-in');
 
   const { user, conversations, groups, initialUnread } = data;
@@ -91,7 +76,6 @@ export default async function MainLayout({ children }: { children: React.ReactNo
     <SocketProvider userId={user.id}>
       <TooltipProvider>
         <div className="flex h-screen overflow-hidden bg-background">
-          {/* Desktop sidebar */}
           <aside className="hidden w-64 shrink-0 border-r md:block">
             <Sidebar
               currentUser={user}
@@ -100,8 +84,6 @@ export default async function MainLayout({ children }: { children: React.ReactNo
               initialUnread={initialUnread}
             />
           </aside>
-
-          {/* Main content */}
           <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</main>
         </div>
         <ModalProvider />

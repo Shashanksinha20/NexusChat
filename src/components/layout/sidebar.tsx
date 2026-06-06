@@ -4,7 +4,8 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Plus, Users } from 'lucide-react';
-import { UserButton } from '@clerk/nextjs';
+import { signOut } from 'next-auth/react';
+import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -248,14 +249,28 @@ export function Sidebar({ currentUser, conversations, groups, initialUnread }: S
             </Button>
           </Link>
           <div className="flex items-center gap-2">
-            <div className="flex-1">
-              <UserButton afterSignOutUrl="/sign-in" appearance={{ elements: { avatarBox: 'h-8 w-8' } }} />
-            </div>
+            <Avatar className="h-8 w-8 shrink-0">
+              <AvatarImage src={currentUser.imageUrl ?? undefined} />
+              <AvatarFallback className="text-xs">{getInitials(currentUser.displayName)}</AvatarFallback>
+            </Avatar>
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-sm font-medium text-sidebar-foreground">{currentUser.displayName}</span>
               <span className="truncate text-xs text-sidebar-foreground/50">@{currentUser.username}</span>
             </div>
             <div className={cn('h-2 w-2 shrink-0 rounded-full', isConnected ? 'bg-emerald-500' : 'bg-zinc-400')} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-sidebar-foreground/50 hover:text-destructive"
+                  onClick={() => signOut({ callbackUrl: '/sign-in' })}
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Sign out</TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>

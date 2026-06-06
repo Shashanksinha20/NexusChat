@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
-import { auth } from '@clerk/nextjs/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
-export default function HomePage() {
-  const { userId } = auth();
-  if (userId) redirect('/conversations');
+export default async function HomePage() {
+  const session = await getServerSession(authOptions);
+  if (session) redirect('/conversations');
   redirect('/sign-in');
 }
